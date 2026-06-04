@@ -1,0 +1,58 @@
+name: BD Job Discovery Agent
+
+on:
+  schedule:
+    - cron: "0 */3 * * *"   # every 3 hours
+  workflow_dispatch: {}       # manual "Run workflow" button
+
+permissions:
+  contents: write             # to commit data/feedback.json
+
+concurrency:
+  group: bd-job-agent
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the feedback commit can rebase before push
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install chromium --with-deps
+
+      - name: Sync feedback from Notion (learning loop)
+        run: python feedback_sync.py
+        continue-on-error: true
+
+      - name: Run agent (scrape -> enrich -> store)
+        run: python -m scraper.main
+
+      - name: Commit updated feedback history
+        run: |
+          git add data/feedback.json
+          if git diff --cached --quiet; then
+            echo "No feedback changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update feedback history"
+          git pull --rebase --autostash || true
+          git push || echo "::warning::feedback push failed (history not persisted this run)"

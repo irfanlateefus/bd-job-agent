@@ -1,0 +1,140 @@
+# ============================================================================
+# BD Job Discovery Agent — single control file.
+# Everything user-facing lives HERE and in profile/context.md.
+# No keywords, companies, or filters are hardcoded in the Python.
+# ============================================================================
+
+# ---- Pre-filter (fast, rule-based, runs BEFORE the LLM) --------------------
+# A listing's title (or, for HN, its full text) must contain at least one
+# required keyword and none of the blocked keywords to reach the AI stage.
+filters:
+  required_keywords:
+    - "business development"
+    - "BD"
+    - "partnerships"
+    - "sales executive"
+    - "account executive"
+    - "GTM"
+    - "go-to-market"
+    - "growth"
+    - "revenue"
+    - "alliances"
+  blocked_keywords:
+    - "intern"
+    - "internship"
+
+# ---- AI scoring priorities (fed to Gemini alongside profile/context.md) ----
+priorities:
+  - "Senior / executive Business Development, Partnerships, GTM, or Alliances roles (Director, VP, Head of)"
+  - "Tech, telecom, AI/ML, networking, infrastructure, or enterprise SaaS domain is a strong plus"
+  - "Strategic / enterprise selling and C-suite engagement over high-volume transactional quotas"
+  - "Remote, or hybrid within the Greater New York / New Jersey metro"
+  - "Total compensation aligned with a $275K+ floor"
+  - "Penalize junior IC / SDR / BDR / quota-only roles and industries far from tech/telecom"
+
+# ---- Storage ----------------------------------------------------------------
+storage:
+  provider: "notion"          # notion | sheets | supabase | sqlite
+
+# ---- Feedback learning ------------------------------------------------------
+# Notion Status values that count as positive vs negative signal. These bias
+# future scoring (see ai/memory.py + feedback_sync.py).
+feedback:
+  positive_statuses: ["Applied", "Interested"]
+  negative_statuses: ["Skip", "Rejected"]
+
+# ---- AI settings ------------------------------------------------------------
+ai:
+  enabled: true
+  model: "gemini-2.0-flash-lite"   # primary; client.py auto-falls back on 429/404
+  min_score: 0                     # drop listings scoring below this (0 = keep all)
+  rate_limit_seconds: 7            # seconds between Gemini calls (free-tier safe)
+  batch_size: 5                    # listings per API call (never go above ~5)
+
+# ============================================================================
+# SOURCES
+# ============================================================================
+
+# ---- Company boards (zero-cost JSON APIs) ----------------------------------
+# Each entry is just the board slug. Adding a company is one line. URLs:
+#   Greenhouse: https://boards-api.greenhouse.io/v1/boards/<slug>/jobs
+#   Lever:      https://api.lever.co/v0/postings/<slug>?mode=json
+#   Ashby:      https://api.ashbyhq.com/posting-api/job-board/<slug>
+companies:
+  # Curated for telecom / networking / edge + AIOps / observability + AI labs &
+  # AI-infra. Every slug validated live on 2026-06-04 (run validate_sources.py
+  # after editing). Add one slug per line.
+  greenhouse:
+    # AI labs & data/AI platforms
+    - databricks
+    - anthropic
+    - scaleai
+    - coreweave        # AI GPU cloud
+    # AIOps / observability / network monitoring
+    - datadog
+    - elastic
+    - grafanalabs
+    - pagerduty
+    - sumologic
+    - cribl
+    # Telecom / networking / edge / connectivity / IoT
+    - cloudflare
+    - fastly
+    - twilio           # programmable comms / telecom APIs
+    - netskope         # SASE / network security
+    - aviatrix         # multicloud networking
+    - samsara          # IoT / connected operations
+  lever:
+    - mistral          # AI lab
+  ashby:
+    # AI labs, AI infra, and applied / agentic AI
+    - openai
+    - harvey
+    - crusoe           # AI infra (GPU + energy)
+    - decagon          # AI agents
+    - sierra           # AI agents
+    - baseten          # AI inference infra
+    - modal            # AI compute infra
+    - writer           # enterprise AI
+    - contextual       # RAG / enterprise AI
+
+# ---- Aggregators ------------------------------------------------------------
+aggregators:
+  remoteok:
+    enabled: true
+  indeed:
+    enabled: true
+    queries:
+      - "business development executive"
+      - "head of partnerships"
+      - "vp business development"
+    location: "Remote"
+  hackernews:
+    enabled: true
+    max_comments: 80            # top-level comments to scan in the latest thread
+
+# ---- Niche boards -----------------------------------------------------------
+# Dispatched by `method`: rss | html | playwright. Each board is isolated so
+# one failure never breaks the others.
+# These are general-BD nets (reliable telecom/AI-specific BD RSS boards are
+# scarce). Telecom/AI focus is enforced upstream by the curated `companies`
+# boards above plus the keyword pre-filter and profile/context.md scoring, so
+# off-domain roles caught here are down-scored by the LLM.
+niche_boards:
+  - name: WeWorkRemotely
+    method: rss
+    url: "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
+  - name: RepVue
+    method: html
+    url: "https://www.repvue.com/jobs?function=Business%20Development"
+  # - name: Wellfound        # uncomment for startup roles (flakiest — anti-bot)
+  #   method: playwright
+  #   url: "https://wellfound.com/role/r/business-development"
+
+# ---- LinkedIn Jobs (Playwright, conservative; isolated from other sources) --
+linkedin:
+  enabled: true
+  keywords: "business development"
+  location: "Greater New York City Area"
+  max_results: 25
+  rate_limit_seconds: 4         # pause between page actions (be gentle)
