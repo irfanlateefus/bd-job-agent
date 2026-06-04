@@ -13,9 +13,27 @@ import sys
 import requests
 from dotenv import load_dotenv
 
+from ai.client import MODEL_FALLBACK  # test the same chain the agent actually uses
+
 load_dotenv()
 
 NV = "2022-06-28"  # Notion API version
+
+
+def _gemini_call(model: str, key: str) -> requests.Response:
+    return requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        json={"contents": [{"parts": [{"text": "ok"}]}]},
+        timeout=20,
+    )
+
+
+def _error_message(r: requests.Response) -> str:
+    try:
+        return r.json().get("error", {}).get("message", "") or "unavailable"
+    except ValueError:
+        return r.text[:120] or "unavailable"
 
 
 def check_gemini() -> bool:
@@ -23,25 +41,30 @@ def check_gemini() -> bool:
     if not k:
         print("[FAIL] GEMINI_API_KEY — not set in .env (get one at https://aistudio.google.com/apikey)")
         return False
-    try:
-        r = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            "gemini-2.0-flash-lite:generateContent",
-            headers={"x-goog-api-key": k, "Content-Type": "application/json"},
-            json={"contents": [{"parts": [{"text": "ok"}]}]},
-            timeout=20,
-        )
-    except requests.RequestException as e:
-        print(f"[FAIL] GEMINI_API_KEY — network error: {type(e).__name__}")
-        return False
-    if r.status_code == 200:
-        print(f"[PASS] GEMINI_API_KEY — key works (prefix {k[:4]}...)")
-        return True
-    try:
-        msg = r.json().get("error", {}).get("message", "")
-    except ValueError:
-        msg = r.text[:120]
-    print(f"[FAIL] GEMINI_API_KEY — HTTP {r.status_code}: {msg or 'rejected'}")
+
+    last = ""
+    for model in MODEL_FALLBACK:  # same fallback order as the agent
+        try:
+            r = _gemini_call(model, k)
+        except requests.RequestException as e:
+            last = f"network error: {type(e).__name__}"
+            print(f"  [..] {model} -> {last}")
+            continue
+        if r.status_code == 200:
+            print(f"[PASS] GEMINI_API_KEY — key works via {model} (prefix {k[:4]}...)")
+            return True
+        msg = _error_message(r)
+        if r.status_code == 400:
+            # Bad key/request — identical for every model, so stop early.
+            print(f"[FAIL] GEMINI_API_KEY — HTTP 400: {msg}")
+            return False
+        last = f"HTTP {r.status_code}: {msg}"
+        print(f"  [..] {model} -> {last[:90]}")
+
+    print(f"[FAIL] GEMINI_API_KEY — all {len(MODEL_FALLBACK)} models unavailable. Last: {last[:160]}")
+    if "429" in last or "quota" in last.lower():
+        print("       Free-tier quota/rate limit — retry in ~1 min, or create a fresh key")
+        print("       at https://aistudio.google.com/apikey (new project provisions free quota).")
     return False
 
 
