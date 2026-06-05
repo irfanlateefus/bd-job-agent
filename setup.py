@@ -1,13 +1,16 @@
 """
-One-time Notion schema creation.
+Set up the Notion database for the agent — idempotent, safe to re-run.
 
-Creates the database with all properties the agent expects, then prints the new
-database id. Copy that id into NOTION_DATABASE_ID (.env locally, or the GitHub
-secret).
+- If a database titled "BD Job Pipeline" is already visible to your integration,
+  it adds any MISSING properties and leaves the rest alone (repairs a half-set-up
+  or manually-created database).
+- Otherwise it creates the database under NOTION_PARENT_PAGE_ID.
+
+Either way it prints the NOTION_DATABASE_ID to put in .env and your GitHub secret.
 
 Prereqs:
-  - NOTION_TOKEN          (your integration token)
-  - NOTION_PARENT_PAGE_ID (a page the integration can edit; the DB lands here)
+  - NOTION_TOKEN          (your integration's Internal Integration Secret)
+  - NOTION_PARENT_PAGE_ID (only needed when creating a brand-new database)
 
 Run:  python setup.py
 """
@@ -20,6 +23,8 @@ from notion_client import Client
 from notion_client.errors import APIErrorCode, APIResponseError
 
 load_dotenv()
+
+DB_TITLE = "BD Job Pipeline"
 
 SOURCE_OPTIONS = [
     {"name": "Greenhouse", "color": "green"},
@@ -43,6 +48,19 @@ STATUS_OPTIONS = [
     {"name": "Rejected", "color": "red"},
 ]
 
+# Single source of truth for the schema — used for both create and repair.
+PROPERTIES = {
+    "Name": {"title": {}},
+    "Company": {"rich_text": {}},
+    "URL": {"url": {}},
+    "Source": {"select": {"options": SOURCE_OPTIONS}},
+    "AI Score": {"number": {"format": "number"}},
+    "Summary": {"rich_text": {}},
+    "Notes": {"rich_text": {}},
+    "Date Found": {"date": {}},
+    "Status": {"select": {"options": STATUS_OPTIONS}},
+}
+
 
 def _explain(e: APIResponseError) -> None:
     """Print a clean, actionable message for the common Notion setup errors."""
@@ -63,12 +81,31 @@ def _explain(e: APIResponseError) -> None:
         print(f"\nERROR: Notion API error [{code}]: {e}")
 
 
+def _find_existing(client: Client) -> dict | None:
+    """Return a database titled DB_TITLE that the integration can see, or None."""
+    resp = client.search(filter={"value": "database", "property": "object"})
+    matches = [
+        db for db in resp.get("results", [])
+        if "".join(t.get("plain_text", "") for t in db.get("title", [])) == DB_TITLE
+    ]
+    if len(matches) > 1:
+        print(f"WARNING: {len(matches)} databases named '{DB_TITLE}' found — using the first.")
+    return matches[0] if matches else None
+
+
+def _ensure_schema(client: Client, db: dict) -> list:
+    """Add any missing properties to an existing database. Returns names added."""
+    existing = set(db.get("properties", {}).keys())
+    missing = {k: v for k, v in PROPERTIES.items() if k != "Name" and k not in existing}
+    if missing:
+        client.databases.update(database_id=db["id"], properties=missing)
+    return list(missing.keys())
+
+
 def main() -> None:
     token = (os.environ.get("NOTION_TOKEN") or "").strip()
-    parent = (os.environ.get("NOTION_PARENT_PAGE_ID") or "").strip()
-    if not token or not parent:
-        print("ERROR: set NOTION_TOKEN and NOTION_PARENT_PAGE_ID in .env first "
-              "(copy .env.example to .env and fill both in).")
+    if not token:
+        print("ERROR: set NOTION_TOKEN in .env first (copy .env.example to .env and fill it in).")
         sys.exit(1)
     if not token.startswith(("ntn_", "secret_")):
         print("WARNING: NOTION_TOKEN doesn't look like an integration secret "
@@ -78,21 +115,29 @@ def main() -> None:
     # log_level quiets notion-client's own WARNING log so only our message shows.
     client = Client(auth=token, log_level=logging.ERROR)
     try:
-        db = client.databases.create(
-            parent={"type": "page_id", "page_id": parent},
-            title=[{"type": "text", "text": {"content": "BD Job Pipeline"}}],
-            properties={
-                "Name": {"title": {}},
-                "Company": {"rich_text": {}},
-                "URL": {"url": {}},
-                "Source": {"select": {"options": SOURCE_OPTIONS}},
-                "AI Score": {"number": {"format": "number"}},
-                "Summary": {"rich_text": {}},
-                "Notes": {"rich_text": {}},
-                "Date Found": {"date": {}},
-                "Status": {"select": {"options": STATUS_OPTIONS}},
-            },
-        )
+        existing = _find_existing(client)
+        if existing:
+            db_id = existing["id"]
+            added = _ensure_schema(client, existing)
+            if added:
+                print(f"Found existing '{DB_TITLE}' — added missing properties: {', '.join(added)}.")
+            else:
+                print(f"Found existing '{DB_TITLE}' — schema already complete.")
+        else:
+            parent = (os.environ.get("NOTION_PARENT_PAGE_ID") or "").strip()
+            if not parent:
+                print("ERROR: no existing 'BD Job Pipeline' database is visible to your "
+                      "integration, and NOTION_PARENT_PAGE_ID is not set.")
+                print("  - Set NOTION_PARENT_PAGE_ID in .env (a page shared with the "
+                      "integration) so the database can be created there.")
+                sys.exit(1)
+            db = client.databases.create(
+                parent={"type": "page_id", "page_id": parent},
+                title=[{"type": "text", "text": {"content": DB_TITLE}}],
+                properties=PROPERTIES,
+            )
+            db_id = db["id"]
+            print(f"Created '{DB_TITLE}'.")
     except APIResponseError as e:
         _explain(e)
         sys.exit(1)
@@ -101,9 +146,8 @@ def main() -> None:
               "Check your network connection and try again.")
         sys.exit(1)
 
-    print("Database created successfully.")
-    print(f"\n  NOTION_DATABASE_ID={db['id']}\n")
-    print("Next: set it as a GitHub Actions secret, e.g.")
+    print(f"\n  NOTION_DATABASE_ID={db_id}\n")
+    print("Put that in .env and set it as a GitHub secret:")
     print("  gh secret set NOTION_DATABASE_ID --repo irfanlateefus/bd-job-agent")
 
 
