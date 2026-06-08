@@ -1,0 +1,42 @@
+name: Enrich Backlog (persona + score)
+
+# Backfills rows missing an AI Score or a Persona tag — e.g. after adding a new
+# persona, or after a run hit the Gemini daily quota. Runs once a day when the
+# free-tier quota is fresh; it's a fast no-op ("Nothing to enrich") once caught
+# up, and resumable if quota runs out mid-run.
+
+on:
+  schedule:
+    - cron: "30 9 * * *"   # daily 09:30 UTC (~05:30 ET) — between scraper ticks, fresh quota
+  workflow_dispatch: {}     # manual "Run workflow" button
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bd-job-agent        # same group as the scraper: never run both at once (quota-safe)
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        # No Playwright browser needed — enrich only reads Notion + calls Gemini.
+
+      - name: Backfill untagged / unscored rows
+        run: python enrich_existing.py
