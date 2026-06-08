@@ -1,9 +1,10 @@
 """
-Backfill AI scores on rows that don't have one yet.
+Backfill AI scores and persona tags on rows that don't have them yet.
 
-Useful after you add the GEMINI_API_KEY, change the profile, or import rows from
-elsewhere. Queries Notion for pages missing an AI Score, scores them in batches,
-and updates each page in place.
+Useful after you add the GEMINI_API_KEY, change a persona profile, add a new
+persona, or import rows from elsewhere. Queries Notion for pages missing an AI
+Score OR a Persona tag, scores them (best-fit persona) in batches, and updates
+each page in place. Resumable — re-run to continue if quota runs out.
 
 Run:  python enrich_existing.py
 """
@@ -52,8 +53,10 @@ def main() -> None:
         resp = client.databases.query(**kwargs)
         for page in resp["results"]:
             props = page["properties"]
-            if props.get("AI Score", {}).get("number") is not None:
-                continue
+            has_score = props.get("AI Score", {}).get("number") is not None
+            has_persona = bool(props.get("Persona", {}).get("select"))
+            if has_score and has_persona:
+                continue  # already fully enriched
             todo.append({
                 "_page_id": page["id"],
                 "name": _title(props),
