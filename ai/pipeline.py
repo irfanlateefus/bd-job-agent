@@ -45,13 +45,26 @@ def analyse_batch(items: list[dict], personas: list[dict], preference_prompt: st
           f"personas: {', '.join(sorted(n for n in persona_names if n))}")
 
     enriched: list[dict] = []
+    consecutive_empty = 0
+    GIVEUP_AFTER = 3  # consecutive all-model-429 batches => quota exhausted; stop calling AI
     for i, batch in enumerate(batches):
+        if consecutive_empty >= GIVEUP_AFTER:
+            # Quota looks exhausted. Stop hammering Gemini (which would spin the
+            # run into a timeout); keep the rest unscored so the run still
+            # completes and stores them — enrich / the next run scores them later.
+            remaining = [it for b in batches[i:] for it in b]
+            print(f"  [AI] quota exhausted after {consecutive_empty} empty batches — "
+                  f"storing {len(remaining)} remaining items unscored (scored later by enrich)")
+            if not min_score:
+                enriched.extend(remaining)
+            break
         print(f"  [AI] batch {i + 1}/{len(batches)}...")
         prompt = _build_prompt(batch, personas, preference_prompt)
         # Scale the output budget to the batch so verbose responses aren't truncated.
         max_tokens = min(8192, max(2048, 600 * len(batch)))
         result = generate(prompt, model=model, rate_limit=rate_limit, max_output_tokens=max_tokens)
         analyses = result.get("analyses", []) if isinstance(result, dict) else []
+        consecutive_empty = consecutive_empty + 1 if not analyses else 0
         if len(analyses) != len(batch):
             print(f"  [AI] WARNING: {len(analyses)} analyses for {len(batch)} items "
                   f"(batch {i + 1}) — unmatched items kept unscored")
