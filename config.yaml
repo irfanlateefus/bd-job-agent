@@ -64,8 +64,8 @@ ai:
   enabled: true
   model: "gemini-flash-lite-latest"   # primary; client.py auto-falls back on 429/404
   min_score: 0                     # drop listings scoring below this (0 = keep all)
-  rate_limit_seconds: 7            # seconds between Gemini calls (free-tier safe)
-  batch_size: 5                    # listings per API call (never go above ~5)
+  rate_limit_seconds: 1            # paid tier: minimal spacing (~60 RPM ceiling). Set back to 7 if you revert to free tier.
+  batch_size: 8                    # paid tier: larger batches = fewer calls; dynamic token budget scales to fit. Keep <=5 on free tier.
 
 # ============================================================================
 # SOURCES
