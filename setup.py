@@ -48,10 +48,16 @@ STATUS_OPTIONS = [
     {"name": "Rejected", "color": "red"},
 ]
 
+PERSONA_OPTIONS = [
+    {"name": "Business Development", "color": "blue"},
+    {"name": "Solution Architect", "color": "green"},
+]
+
 # Single source of truth for the schema — used for both create and repair.
 PROPERTIES = {
     "Name": {"title": {}},
     "Company": {"rich_text": {}},
+    "Persona": {"select": {"options": PERSONA_OPTIONS}},
     "URL": {"url": {}},
     "Source": {"select": {"options": SOURCE_OPTIONS}},
     "AI Score": {"number": {"format": "number"}},

@@ -8,29 +8,45 @@
 # A listing's title (or, for HN, its full text) must contain at least one
 # required keyword and none of the blocked keywords to reach the AI stage.
 filters:
-  required_keywords:
-    - "business development"
-    - "BD"
-    - "partnerships"
-    - "sales executive"
-    - "account executive"
-    - "GTM"
-    - "go-to-market"
-    - "growth"
-    - "revenue"
-    - "alliances"
+  # Global blocklist (applies across all personas). A listing is dropped if its
+  # title/text contains any of these.
   blocked_keywords:
     - "intern"
     - "internship"
 
-# ---- AI scoring priorities (fed to Gemini alongside profile/context.md) ----
-priorities:
-  - "Senior / executive Business Development, Partnerships, GTM, or Alliances roles (Director, VP, Head of)"
-  - "Tech, telecom, AI/ML, networking, infrastructure, or enterprise SaaS domain is a strong plus"
-  - "Strategic / enterprise selling and C-suite engagement over high-volume transactional quotas"
-  - "Remote, or hybrid within the Greater New York / New Jersey metro"
-  - "Total compensation aligned with a $275K+ floor"
-  - "Penalize junior IC / SDR / BDR / quota-only roles and industries far from tech/telecom"
+# ---- Personas ---------------------------------------------------------------
+# The agent scores each listing against ALL personas, picks the single best-fit
+# one, and tags it (the "Persona" column in Notion). A listing reaches the AI
+# stage if its title matches ANY persona's keywords (the fast pre-filter).
+# Add a persona by adding an entry here plus a profile/<context_file>.
+personas:
+  - name: "Business Development"
+    context_file: "profile/context-bd.md"
+    keywords:
+      - "business development"
+      - "BD"
+      - "partnerships"
+      - "alliances"
+      - "GTM"
+      - "go-to-market"
+      - "sales executive"
+      - "account executive"
+      - "growth"
+      - "revenue"
+  - name: "Solution Architect"
+    context_file: "profile/context-solution-architect.md"
+    keywords:
+      - "solution architect"
+      - "solutions architect"
+      - "pre-sales"
+      - "presales"
+      - "sales engineer"
+      - "sales engineering"
+      - "solutions engineer"
+      - "solutions consultant"
+      - "systems engineer"
+      - "principal architect"
+      - "technical account manager"
 
 # ---- Storage ----------------------------------------------------------------
 storage:

@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from scraper.filters import load_config
+from scraper.filters import load_config, load_personas
 from scraper.sources import aggregators, company_boards, linkedin, niche_boards
 from storage.notion_sync import sync
 
@@ -77,11 +77,9 @@ def main() -> None:
         from ai.memory import build_preference_prompt, load_feedback
         from ai.pipeline import analyse_batch
 
-        feedback = load_feedback()
-        preference = build_preference_prompt(feedback)
-        context_path = PROJECT_ROOT / "profile" / "context.md"
-        context = context_path.read_text() if context_path.exists() else ""
-        deduped = analyse_batch(deduped, context=context, preference_prompt=preference)
+        preference = build_preference_prompt(load_feedback())
+        personas = load_personas()
+        deduped = analyse_batch(deduped, personas, preference_prompt=preference)
     elif not ai_on:
         print("[AI] Skipped — disabled in config or GEMINI_API_KEY not set")
     else:

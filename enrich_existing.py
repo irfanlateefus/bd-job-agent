@@ -19,6 +19,7 @@ from notion_client.errors import APIResponseError
 
 from ai.memory import build_preference_prompt, load_feedback
 from ai.pipeline import analyse_batch
+from scraper.filters import load_personas
 from storage.notion_sync import _rich_text, get_client
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -69,16 +70,17 @@ def main() -> None:
         return
 
     print(f"Enriching {len(todo)} rows...")
-    context_path = PROJECT_ROOT / "profile" / "context.md"
-    context = context_path.read_text() if context_path.exists() else ""
     preference = build_preference_prompt(load_feedback())
-    enriched = analyse_batch(todo, context=context, preference_prompt=preference)
+    personas = load_personas()
+    enriched = analyse_batch(todo, personas, preference_prompt=preference)
 
     updated = 0
     for item in enriched:
         if item.get("ai_score") is None:
             continue
         props = {"AI Score": {"number": item["ai_score"]}}
+        if item.get("persona"):
+            props["Persona"] = {"select": {"name": item["persona"]}}
         if item.get("ai_summary"):
             props["Summary"] = _rich_text(item["ai_summary"])
         if item.get("ai_notes"):

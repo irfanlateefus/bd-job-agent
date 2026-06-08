@@ -103,10 +103,20 @@ niche_boards:
 ```
 Add any board with its `method`. Each board is isolated — one failing never breaks the others.
 
+### Personas (multi-track matching)
+The agent scores each role against **all personas** in `config.yaml`, picks the single
+best fit, and tags it in the Notion **Persona** column. Two ship by default —
+**Business Development** and **Solution Architect**. Each persona has:
+- **keywords** (the fast pre-filter; a role passes if it matches ANY persona's keywords)
+- a **`context_file`** under `profile/` describing who you are + a scoring guide
+
+Add a persona by adding an entry under `personas:` plus a `profile/<context_file>.md`
+(keep the highest-signal criteria near the top — the scorer reads the first ~1600 chars
+of each persona context). Also add its name to the **Persona** select via `python setup.py`.
+
 ### Tune matching
-- **Keywords** (the fast pre-filter): `filters.required_keywords` / `filters.blocked_keywords`.
-- **Who you are** (how the AI scores fit): edit `profile/context.md`. Keep the highest-signal
-  criteria near the top — the scorer reads the first 2000 characters.
+- **Keywords** (fast pre-filter): each persona's `keywords` / global `filters.blocked_keywords`.
+- **Who you are** (how the AI scores fit): edit the persona's `profile/context-*.md`.
 - **Score floor:** `ai.min_score` (e.g. set to `60` to only store decent matches).
 - **Aggregator queries / LinkedIn location:** under `aggregators` and `linkedin`.
 
@@ -125,7 +135,9 @@ what you actually pursue. The workflow runs this automatically and commits the f
 ```
 bd-job-agent/
 ├── config.yaml              # all user-facing settings (sources, filters, AI, learning)
-├── profile/context.md       # your BD matching profile (AI reads this)
+├── profile/                 # one matching profile per persona (AI reads these)
+│   ├── context-bd.md            # Business Development persona
+│   └── context-solution-architect.md  # Solution Architect persona
 ├── scraper/
 │   ├── main.py              # orchestrator: collect → dedupe → enrich → store
 │   ├── filters.py           # config loader + fast keyword pre-filter

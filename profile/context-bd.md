@@ -1,4 +1,4 @@
-# BD Matching Profile — Irfan Lateef, Ph.D
+# Persona: Business Development — Irfan Lateef, Ph.D
 
 TARGET TITLES: Business Development Executive / Head of BD / Director / VP / SVP of BD; Partnerships & Alliances lead; GTM leadership; Strategic or Enterprise Sales leadership.
 SENIORITY: senior-to-executive only (owns strategy, not a quota seat).

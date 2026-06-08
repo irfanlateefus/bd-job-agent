@@ -28,16 +28,36 @@ def _compile(keywords: list[str]) -> list[re.Pattern]:
     return [re.compile(rf"\b{re.escape(k)}\b", re.IGNORECASE) for k in keywords if k]
 
 
+def load_personas() -> list[dict]:
+    """Return [{name, keywords, context}] with each persona's context file loaded."""
+    out = []
+    for p in load_config().get("personas", []) or []:
+        cf = PROJECT_ROOT / (p.get("context_file") or "")
+        out.append({
+            "name": p.get("name", "?"),
+            "keywords": p.get("keywords", []) or [],
+            "context": cf.read_text() if cf.exists() else "",
+        })
+    return out
+
+
+def _required_keywords() -> list[str]:
+    """Union of every persona's keywords — the pre-filter passes any of them."""
+    kws: list[str] = []
+    for p in load_config().get("personas", []) or []:
+        kws.extend(p.get("keywords", []) or [])
+    return kws
+
+
 def is_relevant(text: str) -> bool:
     """
-    True when `text` contains at least one required keyword and no blocked
-    keyword. Used on titles (and on HN comment bodies).
+    True when `text` matches at least one persona keyword (union across all
+    personas) and no blocked keyword. Used on titles (and HN comment bodies).
     """
     if not text:
         return False
-    filters = load_config().get("filters", {}) or {}
-    required = _compile(filters.get("required_keywords", []) or [])
-    blocked = _compile(filters.get("blocked_keywords", []) or [])
+    blocked = _compile(load_config().get("filters", {}).get("blocked_keywords", []) or [])
+    required = _compile(_required_keywords())
 
     if blocked and any(p.search(text) for p in blocked):
         return False
