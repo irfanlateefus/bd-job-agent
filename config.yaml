@@ -8,6 +8,8 @@
 # A listing's title (or, for HN, its full text) must contain at least one
 # required keyword and none of the blocked keywords to reach the AI stage.
 filters:
+  # Drop roles whose location is clearly outside the US (keeps US + ambiguous/Remote).
+  us_only: true
   # Global blocklist (applies across all personas). A listing is dropped if its
   # title/text contains any of these.
   blocked_keywords:

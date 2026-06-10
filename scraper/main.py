@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from scraper.filters import load_config, load_personas
+from scraper.filters import is_us_location, load_config, load_personas
 from scraper.sources import aggregators, company_boards, linkedin, niche_boards
 from storage.notion_sync import sync
 
@@ -70,6 +70,14 @@ def main() -> None:
         seen.add(url)
         deduped.append(item)
     print(f"\nUnique items after dedupe: {len(deduped)}")
+
+    # ---- LOCATION FILTER (filters.us_only) ----
+    if (config.get("filters", {}) or {}).get("us_only"):
+        before = len(deduped)
+        deduped = [it for it in deduped if is_us_location(it.get("location", ""))]
+        dropped = before - len(deduped)
+        if dropped:
+            print(f"[location] dropped {dropped} non-US roles (us_only) — {len(deduped)} remain")
 
     # ---- ENRICH ----
     ai_on = ai_enabled(config)

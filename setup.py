@@ -58,6 +58,7 @@ PROPERTIES = {
     "Name": {"title": {}},
     "Company": {"rich_text": {}},
     "Persona": {"select": {"options": PERSONA_OPTIONS}},
+    "Location": {"rich_text": {}},
     "URL": {"url": {}},
     "Source": {"select": {"options": SOURCE_OPTIONS}},
     "AI Score": {"number": {"format": "number"}},

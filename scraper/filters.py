@@ -64,3 +64,46 @@ def is_relevant(text: str) -> bool:
     if not required:
         return True
     return any(p.search(text) for p in required)
+
+
+# --- US location filtering (filters.us_only) --------------------------------
+US_STATES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
+    "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
+    "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+}
+_US_RE = re.compile(r"\b(u\.?s\.?a?|united states)\b", re.IGNORECASE)
+_STATE_RE = re.compile(r"\b[A-Z]{2}\b")  # uppercase 2-letter tokens (e.g. "NY")
+_NON_US = [
+    # countries / regions
+    "united kingdom", "england", "scotland", "ireland", "france", "germany", "spain",
+    "italy", "netherlands", "portugal", "poland", "sweden", "norway", "denmark",
+    "finland", "switzerland", "austria", "belgium", "czech", "romania", "greece",
+    "canada", "mexico", "brazil", "argentina", "chile", "colombia", "india",
+    "singapore", "japan", "china", "hong kong", "taiwan", "korea", "australia",
+    "new zealand", "israel", "united arab emirates", "saudi", "egypt", "south africa",
+    "nigeria", "emea", "apac", "latam", "anz",
+    # hub cities
+    "london", "paris", "dublin", "berlin", "munich", "frankfurt", "amsterdam", "madrid",
+    "barcelona", "lisbon", "milan", "rome", "zurich", "geneva", "stockholm", "copenhagen",
+    "oslo", "helsinki", "warsaw", "prague", "vienna", "brussels", "toronto", "montreal",
+    "vancouver", "ottawa", "bengaluru", "bangalore", "hyderabad", "mumbai", "delhi",
+    "gurgaon", "pune", "chennai", "noida", "tokyo", "osaka", "seoul", "beijing",
+    "shanghai", "shenzhen", "sydney", "melbourne", "auckland", "tel aviv", "dubai",
+    "abu dhabi", "sao paulo", "são paulo", "mexico city", "bogota", "santiago",
+]
+
+
+def is_us_location(loc: str) -> bool:
+    """Best-effort US check. True for US or unknown; False only when clearly
+    non-US. Conservative: explicit US markers win (so multi-region roles that
+    include the US are kept), and bare 'Remote' / unknown locations are kept."""
+    if not loc:
+        return True
+    if _US_RE.search(loc) or any(t in US_STATES for t in _STATE_RE.findall(loc)):
+        return True
+    low = loc.lower()
+    if any(m in low for m in _NON_US):
+        return False
+    return True

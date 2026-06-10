@@ -58,6 +58,8 @@ def build_properties(item: dict) -> dict:
         props["Company"] = _rich_text(item["company"])
     if item.get("persona"):
         props["Persona"] = {"select": {"name": item["persona"]}}
+    if item.get("location"):
+        props["Location"] = _rich_text(item["location"])
     if item.get("date_found"):
         props["Date Found"] = {"date": {"start": item["date_found"]}}
     if item.get("ai_score") is not None:
